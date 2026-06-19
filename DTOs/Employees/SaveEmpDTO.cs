@@ -18,6 +18,9 @@
         public DateTime? EndDate { get; set; }//? --> this data type is optional / Nullable 
         public decimal? Salary { get; set; }
 
+        public long? DepartmentId { get; set; }
+        public long? managerId { get; set; }
+
 
     }
 }

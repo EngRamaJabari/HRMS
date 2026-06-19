@@ -12,8 +12,13 @@
         public DateTime StartDate { get; set; }
 
         public DateTime? EndDate { get; set; }
+        public long? DepartmentId { get; set; }
+        public long? managerId { get; set; }
 
-        
+        public string? DepartmentName { get; set; } 
+
+        public string? ManagerName { get; set; } 
+
 
 
     }

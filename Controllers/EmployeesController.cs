@@ -4,6 +4,7 @@ using HRMS.Models;
 using HRMS.DTOs.Employees;
 using System.Runtime.InteropServices;
 using System.Collections.Frozen;
+using HRMS.DbContexts;
 
 
 
@@ -15,22 +16,45 @@ namespace HRMS.Controllers      //Project Name → HRMS  Folder → Controllers
     [ApiController] //This tells ASP.NET: This class is a Web API controller
     public class EmployeesController : ControllerBase
     {
+
+
+
+
+
         // Employee Class => model ,it mean the data for the employee like name ,age ... 
-        public static List<Employee> employees = new List<Employee>()
+        //public static List<Employee> employees = new List<Employee>()
+        //{
+        //     // the object 
+
+        //    new Employee() {Id =1 , FirstName = " Rama " , LastName = " Al Jabari " ,Email = " rama@test.com ",Postion = "AI", BirthDate = new DateTime(2005, 9 , 20 ) ,IsActive = true , PhoneNumber = " + 962 781310161", StartDate= new DateTime( 2025 , 12 , 1 ) , Salary = 6000 },
+        //    new Employee() {Id =2 , FirstName = " Ali " , LastName = " Al mmm " ,Email = " mmm@test.com ",Postion = "AI", BirthDate = new DateTime(2001 , 9 , 20 ) ,IsActive = true , PhoneNumber = " + 962 781310161", StartDate= new DateTime( 2025 , 12 , 1 ) , Salary = 5000 },
+        //    new Employee() {Id =3 , FirstName = " sarah " , LastName = " Al ttt " ,Email = " ttt@test.com ",Postion = "frontend", BirthDate = new DateTime(1999 , 9 , 20 ) ,IsActive = true , PhoneNumber = " + 962 781310161", StartDate= new DateTime( 2025 , 12 , 1 ) , Salary = 500},
+        //    new Employee() {Id =4 , FirstName = " ahmmad" , LastName = " Al sss " ,Email = " sss@test.com ",Postion = "developer", BirthDate = new DateTime(2008 , 9 , 20 ) ,IsActive = true , PhoneNumber = " + 962 781310161", StartDate= new DateTime( 2025 , 12 , 1 ) , Salary = 100}
+
+        //};
+
+
+
+
+        // to connect to the DB using DBContext we have to creat an object form it 
+        // 1. the typical method  : public HRMSContext _dbContext = new HRMSContext(); 
+        // 2. Dependency Injection (what we will use ) 
+       
+        
+        
+        public  readonly HRMSContext _dbContext; // first : declear the variable -->  _dbcontext  // from type HRMSContext 
+        //constructor 
+        public EmployeesController(HRMSContext  dbContext)
         {
-             // the object 
+            _dbContext = dbContext;
+        }
 
-            new Employee() {Id =1 , FirstName = " Rama " , LastName = " Al Jabari " ,Email = " rama@test.com ",Postion = "AI", BirthDate = new DateTime(2005, 9 , 20 ) ,IsActive = true , PhoneNumber = " + 962 781310161", StartDate= new DateTime( 2025 , 12 , 1 ) , Salary = 6000 },
-            new Employee() {Id =2 , FirstName = " Ali " , LastName = " Al mmm " ,Email = " mmm@test.com ",Postion = "AI", BirthDate = new DateTime(2001 , 9 , 20 ) ,IsActive = true , PhoneNumber = " + 962 781310161", StartDate= new DateTime( 2025 , 12 , 1 ) , Salary = 5000 },
-            new Employee() {Id =3 , FirstName = " sarah " , LastName = " Al ttt " ,Email = " ttt@test.com ",Postion = "frontend", BirthDate = new DateTime(1999 , 9 , 20 ) ,IsActive = true , PhoneNumber = " + 962 781310161", StartDate= new DateTime( 2025 , 12 , 1 ) , Salary = 500},
-            new Employee() {Id =4 , FirstName = " ahmmad" , LastName = " Al sss " ,Email = " sss@test.com ",Postion = "developer", BirthDate = new DateTime(2008 , 9 , 20 ) ,IsActive = true , PhoneNumber = " + 962 781310161", StartDate= new DateTime( 2025 , 12 , 1 ) , Salary = 100}
 
-        };
+
+
+
+
         // Endpoints --> methods 
-
-
-
-
 
         /* CRUD  
         C ---> Create ( post endpoint )
@@ -45,11 +69,13 @@ namespace HRMS.Controllers      //Project Name → HRMS  Folder → Controllers
 
         // to git the list for all employee 
         [HttpGet("GetbyCriteria")]
-        public IActionResult GetbyCriteria(string? postion) // The Postion now is Nullble 
+        public IActionResult GetbyCriteria([FromQuery]  SearchEmpDTO searchDTO) // The Postion now is Nullble [FromQuery]string? postion , string? Name 
         {// LINQ Query syntxe 
 
-            var data = from emp in employees
-                       where (emp.Postion == null || emp.Postion == postion)
+            var data = from emp in _dbContext.Employees 
+                        from dep in _dbContext.Departments.Where(x => x.Id == emp.DepartmentId).DefaultIfEmpty() //left join  
+                        from man in _dbContext.Employees.Where(x => x.Id  == emp.managerId).DefaultIfEmpty()
+                        where (string.IsNullOrEmpty(searchDTO.Postion) || emp.Postion.ToUpper().Contains(searchDTO.Postion.ToUpper()) && (searchDTO.Name == null || emp.FirstName.ToUpper().Contains(searchDTO.Name.ToUpper())))
                        orderby emp.Id
                        select new EmpDTO  // DTO ---> Data Transfer Object
                        {
@@ -58,8 +84,11 @@ namespace HRMS.Controllers      //Project Name → HRMS  Folder → Controllers
                            Postion = emp.Postion,
                            BirthDate = emp.BirthDate,
                            StartDate = emp.StartDate,
-                           EndDate = emp.EndDate
-
+                           EndDate = emp.EndDate,
+                           DepartmentId = emp.DepartmentId ,
+                           DepartmentName = dep.Name,
+                           managerId = emp.managerId ,
+                           ManagerName = man.FirstName 
                        };
 
             return Ok(data);
@@ -67,20 +96,52 @@ namespace HRMS.Controllers      //Project Name → HRMS  Folder → Controllers
         }
 
 
+
+
+
+
+
+
         [HttpGet("{id}")] // Route Parameter 
         public IActionResult GetById(long id )  // The GETByID should always return one object , not Array 
         {
-            var data = employees.Select( x => new EmpDTO
+
+            //var data = _dbContext.Employees.Join(
+            //    _dbContext.Departments,
+            //    employee => employee.DepartmentId,
+            //    department => department.Id,
+            //    (employee, department) => new EmpDTO
+            //    {
+            //        Id = employee.Id,
+            //        Name = employee.FirstName,
+            //        Postion = employee.Postion,
+            //        BirthDate = employee.BirthDate,
+            //        StartDate = employee.StartDate,
+            //        EndDate = employee.EndDate,
+            //        DepartmentId = employee.DepartmentId,
+            //        DepartmentName = department.Name
+
+            //    }
+            //    );
+
+
+
+
+            var data = _dbContext.Employees.Select(x => new EmpDTO
             {
                 Id = x.Id,
                 Name = x.FirstName,
                 Postion = x.Postion,
                 BirthDate = x.BirthDate,
                 StartDate = x.StartDate,
-                EndDate = x.EndDate
-            }).FirstOrDefault(x => x.Id == id );    // First --> return the first one which fulfills the condition, but if it not get a value it return run time exeption so for safty we use FirstOrDefault function --> if the value not found it will return the Default--> Null 
-         
-            
+                EndDate = x.EndDate,
+                DepartmentId = x.DepartmentId,
+                DepartmentName = "",
+                managerId = x.managerId,
+                ManagerName = " "
+            }).FirstOrDefault(x => x.Id == id);    // First --> return the first one which fulfills the condition, but if it not get a value it return run time exeption so for safty we use FirstOrDefault function --> if the value not found it will return the Default--> Null 
+
+
             if (data == null)
             {
                 return NotFound("Employee Not Found");
@@ -93,12 +154,16 @@ namespace HRMS.Controllers      //Project Name → HRMS  Folder → Controllers
 
 
 
+
+
+
+
         [HttpPost]
         public IActionResult Add(SaveEmpDTO newEmployee)
         {
 
             var employee = new Employee()
-            {   Id =employees.LastOrDefault()?.Id ?? 0  + 1,  //?. (Null-Conditional Operator it will return NULL for the whole expression )  and  ?? -->  (If the value on the left is null, use the value on the right)
+            {   Id = 0, // employees.LastOrDefault()?.Id ?? 0  + 1,  //?. (Null-Conditional Operator it will return NULL for the whole expression )  and  ?? -->  (If the value on the left is null, use the value on the right)
                 FirstName = newEmployee.FirstName,
                 LastName = newEmployee.LastName,
                 Postion = newEmployee.Postion,
@@ -109,9 +174,12 @@ namespace HRMS.Controllers      //Project Name → HRMS  Folder → Controllers
                 IsActive = newEmployee.IsActive,
                 PhoneNumber = newEmployee.PhoneNumber,
                 Salary = newEmployee.Salary, 
+                DepartmentId = newEmployee.DepartmentId,
+                managerId =newEmployee.managerId
             };
 
-            employees.Add(employee);
+            _dbContext.Add(employee);//prepare the values 
+            _dbContext.SaveChanges();//Go to the DB 
 
             return Ok(employee.Id); 
           
@@ -123,12 +191,11 @@ namespace HRMS.Controllers      //Project Name → HRMS  Folder → Controllers
 
 
         [HttpPut]
-
         public IActionResult Update(SaveEmpDTO updateEmployee)
         {
 
 
-            var employee = employees.FirstOrDefault(x => x.Id == updateEmployee.Id);
+            var employee = _dbContext.Employees.FirstOrDefault(x => x.Id == updateEmployee.Id);
 
             if(employee == null)
             {
@@ -144,6 +211,12 @@ namespace HRMS.Controllers      //Project Name → HRMS  Folder → Controllers
             employee.Email = updateEmployee.Email;
             employee.IsActive = updateEmployee.IsActive;
             employee.Salary = updateEmployee.Salary;
+            employee.DepartmentId = updateEmployee.DepartmentId;
+            employee.managerId = updateEmployee.managerId;
+
+
+            _dbContext.SaveChanges();
+
 
             return Ok(); 
 
@@ -159,14 +232,15 @@ namespace HRMS.Controllers      //Project Name → HRMS  Folder → Controllers
          
         public IActionResult  Delete(long id)
         {
-            var employee = employees.FirstOrDefault(x => x.Id == id); 
+            var employee = _dbContext.Employees.FirstOrDefault(x => x.Id == id); 
 
             if (employee == null )
             {
                 return NotFound("The Employee is Not Exist ");
             }
 
-            employees.Remove(employee);
+            _dbContext.Employees.Remove(employee);
+            _dbContext.SaveChanges();
             return Ok();
             
         }
